@@ -71,6 +71,16 @@ void navigatePages(record *records, int records_count, const char* title);
 void fillQ(tData **head, tData **tail, record *Records, int records_count);
 void AddToQueue(tData **head, tData **tail, record *data, int index);
 
+/* helper for index-based sorting: comparator will use this pointer */
+static record *g_sort_records = NULL;
+static int cmp_idx(const void *a, const void *b) {
+    int ia = *(const int*)a;
+    int ib = *(const int*)b;
+    if (less(&g_sort_records[ia], &g_sort_records[ib])) return -1;
+    if (less(&g_sort_records[ib], &g_sort_records[ia])) return 1;
+    return 0;
+}
+
 
 void AddToQueue(tData **head, tData **tail, record *data, int index){
     tData *p = (tData *)malloc(sizeof(tData));
@@ -727,7 +737,7 @@ void navigatePages(record *records, int records_count, const char* title){
         printf("           [S] - первая страница, [E] - последняя страница, [J] - назад на 10, [L] - вперед на 10\n");
         printf("           [F] - поиск по году, [C] - очистить поиск, [V] - вывести весь массив\n");
         printf("           [T] - построить и вывести дерево по дому (A2 алгоритм), [B] - поиск в дереве по дому\n");
-        printf("           [Q] - выйти\n");
+        printf("           [Q] - Отсортировать/Выход\n");
         if (is_search_mode) {
             printf("           *** РЕЖИМ ПОИСКА АКТИВЕН ***\n");
             if (tree_built) {
@@ -957,23 +967,35 @@ int main(){
         return 1;
     }
 
-    tData *head = NULL;
-    tData *tail = NULL;
-    fillQ(&head, &tail, allRecords, records_count);
-    MergeSort(&head);
-    
-    tData *current = head;
-    record *sortedRecords = malloc(records_count * sizeof(record));
-    for (int i = 0; i < records_count && current != NULL; i++){
-        sortedRecords[i] = *(current->data);
-        current = current->next;
+    navigatePages(allRecords, records_count, "База данных - Оригинальные данные");
+
+    int *indices = malloc(records_count * sizeof(int));
+    if (!indices) {
+        fprintf(stderr, "Ошибка выделения памяти для индексов\n");
+        fclose(fp);
+        free(allRecords);
+        return 1;
     }
-    clear(head);
+    for (int i = 0; i < records_count; ++i) indices[i] = i;
+
+    g_sort_records = allRecords;
+    qsort(indices, records_count, sizeof(int), cmp_idx);
+
+    record *sortedRecords = malloc(records_count * sizeof(record));
+    if (!sortedRecords) {
+        fprintf(stderr, "Ошибка выделения памяти для отсортированного массива\n");
+        free(indices);
+        fclose(fp);
+        free(allRecords);
+        return 1;
+    }
+    for (int i = 0; i < records_count; ++i) sortedRecords[i] = allRecords[indices[i]];
 
     navigatePages(sortedRecords, records_count, "База данных - Отсортированные данные");
 
     fclose(fp);
     free(allRecords);
     free(sortedRecords);
+    free(indices);
     return 0;
 }
